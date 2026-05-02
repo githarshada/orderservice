@@ -1,0 +1,75 @@
+name: Build and Deploy to ECS
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 3. Login to ECR
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+          | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+      # 4. Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t my-orderservice .
+
+      # 5. Tag Docker image
+      - name: Tag Docker image
+        run: |
+          docker tag my-orderservice:latest ${{ secrets.ECR_REPOSITORY }}:latest
+
+      # 6. Push to ECR
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.ECR_REPOSITORY }}:latest
+
+      # 7. Get task definition
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ secrets.ECS_TASK_DEFINITION }} \
+            --query taskDefinition \
+            --output json > task-definition.json
+
+      # 8. Clean task definition (IMPORTANT FIX)
+      - name: Clean task definition
+        run: |
+          jq 'del(.status,.revision,.taskDefinitionArn,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' \
+          task-definition.json > cleaned-task-def.json
+
+      # 9. Render new task definition with image
+      - name: Render task definition
+        id: render-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: cleaned-task-def.json
+          container-name: mycontainer
+          image: ${{ secrets.ECR_REPOSITORY }}:latest
+
+      # 10. Deploy to ECS
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task.outputs.task-definition }}
+          service: ${{ secrets.ECS_SERVICE }}
+          cluster: ${{ secrets.ECS_CLUSTER }}
+          wait-for-service-stability: true
