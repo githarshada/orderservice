@@ -23,7 +23,7 @@ public class OrderController {
 
     @GetMapping("/user/{id}")
     public String getUserFromOrderService(@PathVariable Long id) {
-
+        System.out.println("inside function");
         return webClient.get()
                 .uri(userServiceUrl + "/users")
                 .retrieve()
