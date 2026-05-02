@@ -62,7 +62,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: cleaned-task-def.json
-          container-name: mycontainer
+          container-name: myordercontainer
           image: ${{ secrets.ECR_REPOSITORY }}:latest
 
       # 10. Deploy to ECS
