@@ -20,7 +20,10 @@ public class OrderController {
     public OrderController() {
         this.webClient = WebClient.builder().build();
     }
-
+    @GetMapping("/health")
+    public String health() {
+        return "OK";
+    }
     @GetMapping("/user/{id}")
     public String getUserFromOrderService(@PathVariable Long id) {
         System.out.println("inside function");
